@@ -1,0 +1,12 @@
+[
+  {
+    "id": "dev-localhost",
+    "ip": "127.0.0.1",
+    "name": "Komputer Ini (Localhost)",
+    "status": "online",
+    "latency": "<1ms",
+    "hostname": "bengkel.test",
+    "lastChecked": "2026-09-21T03:30:03.918Z",
+    "networkType": "LAN"
+  }
+]

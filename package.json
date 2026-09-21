@@ -1,0 +1,24 @@
+{
+  "name": "internal-viewer",
+  "version": "1.0.0",
+  "description": "Aplikasi Web Pemantau Komputer dan IP Jaringan Lokal (LAN) berbasis Next.js",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "keywords": [
+    "network-monitor",
+    "lan-monitor",
+    "ping-tool",
+    "nextjs"
+  ],
+  "author": "",
+  "license": "ISC"
+}
