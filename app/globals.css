@@ -849,6 +849,18 @@ body {
   max-width: 440px;
 }
 
+.modal-icon-warn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--status-offline-bg);
+  color: var(--status-offline-dot);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 0.5rem;
+}
+
 .modal-header {
   display: flex;
   align-items: center;

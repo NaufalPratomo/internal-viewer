@@ -62,10 +62,24 @@ export default function HomePage() {
   const [editPasswordValue, setEditPasswordValue] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
-  // Helper untuk membuka remote: simpan file ke folder project dan buka mstsc
+  // State Modal Peringatan Kredensial Remote RDP
+  const [remoteWarnDevice, setRemoteWarnDevice] = useState(null);
+
+  // Helper untuk membuka remote: validasi username terlebih dahulu
   const handleRemoteDevice = async (device) => {
     if (!device || !device.ip) return;
 
+    // Jika username Windows belum diisi, tampilkan modal peringatan konfirmasi
+    if (!device.username || !device.username.trim()) {
+      setRemoteWarnDevice(device);
+      return;
+    }
+
+    await executeRemoteCall(device);
+  };
+
+  // Eksekusi pemanggilan API remote RDP
+  const executeRemoteCall = async (device) => {
     try {
       const res = await fetch('/api/remote', {
         method: 'POST',
@@ -80,12 +94,10 @@ export default function HomePage() {
 
       if (res.ok) {
         const data = await res.json();
-        // Jika server lokal berhasil meluncurkan mstsc, tidak perlu download browser lagi
         if (data.launchedLocally) {
           return;
         }
 
-        // Fallback jika dibuka dari browser perangkat lain: unduh file yang dihasilkan server
         if (data.content) {
           const blob = new Blob([data.content], { type: 'application/x-rdp;charset=utf-8' });
           const url = URL.createObjectURL(blob);
@@ -516,11 +528,12 @@ export default function HomePage() {
       if (e.key === 'Escape') {
         if (isScanModalOpen) setIsScanModalOpen(false);
         if (isEditModalOpen) setIsEditModalOpen(false);
+        if (remoteWarnDevice) setRemoteWarnDevice(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isScanModalOpen, isEditModalOpen]);
+  }, [isScanModalOpen, isEditModalOpen, remoteWarnDevice]);
 
   return (
     <div className="app-container">
@@ -1214,6 +1227,66 @@ export default function HomePage() {
                 onClick={handleSaveEdit}
               >
                 Simpan Perubahan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal Peringatan Username Windows Kosong */}
+      {remoteWarnDevice && (
+        <div className="modal-overlay" role="dialog" aria-labelledby="modalWarnTitle" aria-modal="true">
+          <div className="modal-card modal-card-sm">
+            <div className="modal-header">
+              <h3 id="modalWarnTitle" className="modal-title">Kredensial Belum Lengkap</h3>
+              <button
+                type="button"
+                className="btn-modal-close"
+                onClick={() => setRemoteWarnDevice(null)}
+                aria-label="Tutup jendela peringatan"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-icon-warn" aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+              </div>
+              <p className="modal-instruction" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                Username Windows untuk komputer <strong>{remoteWarnDevice.name || remoteWarnDevice.ip}</strong> belum diisi.
+              </p>
+              <p className="modal-instruction">
+                Untuk koneksi instan otomatis tanpa dialog login berulang, lengkapi username Windows di menu <strong>Edit</strong>. Anda juga dapat melanjutkan remote sekarang (Windows akan menanyakan username dan password secara manual).
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  const targetDev = remoteWarnDevice;
+                  setRemoteWarnDevice(null);
+                  openEditModal(targetDev);
+                }}
+              >
+                Isi Kredensial Sekarang
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  const targetDev = remoteWarnDevice;
+                  setRemoteWarnDevice(null);
+                  await executeRemoteCall(targetDev);
+                }}
+              >
+                Lanjutkan Remote Saja
               </button>
             </div>
           </div>
