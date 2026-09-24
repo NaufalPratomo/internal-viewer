@@ -12,46 +12,66 @@ function pingHostFast(target, timeoutMs = 500) {
       ? ['-a', '-n', '1', '-w', String(timeoutMs), target]
       : ['-c', '1', '-W', String(timeoutSec), target];
 
-    execFile('ping', args, { timeout: timeoutMs + 1000 }, (error, stdout, stderr) => {
-      const output = (stdout || '') + (stderr || '');
+    try {
+      execFile('ping', args, { timeout: timeoutMs + 1000 }, (error, stdout, stderr) => {
+        try {
+          const output = (stdout || '') + (stderr || '');
 
-      let detectedHostname = '';
-      const hostMatch = output.match(/Pinging\s+([a-zA-Z0-9._-]+)\s+\[/i);
-      if (hostMatch && hostMatch[1] && hostMatch[1].toLowerCase() !== target.toLowerCase()) {
-        detectedHostname = hostMatch[1];
-      }
+          let detectedHostname = '';
+          const hostMatch = output.match(/Pinging\s+([a-zA-Z0-9._-]+)\s+\[/i);
+          if (hostMatch && hostMatch[1] && hostMatch[1].toLowerCase() !== target.toLowerCase()) {
+            detectedHostname = hostMatch[1];
+          }
 
-      const winMatch = output.match(/Reply from [^:]+:\s+bytes=\d+\s+time([=<]\d+ms)\s+TTL=\d+/i);
-      if (winMatch) {
-        return resolve({
-          ip: target,
-          status: 'online',
-          latency: winMatch[1].replace('=', ''),
-          hostname: detectedHostname,
-          lastChecked: new Date().toISOString()
-        });
-      }
+          const winMatch = output.match(/Reply from [^:]+:\s+bytes=\d+\s+time([=<]\d+ms)\s+TTL=\d+/i);
+          if (winMatch) {
+            return resolve({
+              ip: target,
+              status: 'online',
+              latency: winMatch[1].replace('=', ''),
+              hostname: detectedHostname,
+              lastChecked: new Date().toISOString()
+            });
+          }
 
-      const linuxMatch = output.match(/bytes from [^:]+:\s+icmp_seq=\d+\s+ttl=\d+\s+time=([\d.]+)\s*ms/i);
-      if (linuxMatch) {
-        const ms = Math.round(parseFloat(linuxMatch[1]));
-        return resolve({
-          ip: target,
-          status: 'online',
-          latency: `${ms}ms`,
-          hostname: detectedHostname,
-          lastChecked: new Date().toISOString()
-        });
-      }
+          const linuxMatch = output.match(/bytes from [^:]+:\s+icmp_seq=\d+\s+ttl=\d+\s+time=([\d.]+)\s*ms/i);
+          if (linuxMatch) {
+            const ms = Math.round(parseFloat(linuxMatch[1]));
+            return resolve({
+              ip: target,
+              status: 'online',
+              latency: `${ms}ms`,
+              hostname: detectedHostname,
+              lastChecked: new Date().toISOString()
+            });
+          }
 
+          return resolve({
+            ip: target,
+            status: 'offline',
+            latency: '-',
+            hostname: detectedHostname,
+            lastChecked: new Date().toISOString()
+          });
+        } catch (innerErr) {
+          return resolve({
+            ip: target,
+            status: 'offline',
+            latency: '-',
+            hostname: '',
+            lastChecked: new Date().toISOString()
+          });
+        }
+      });
+    } catch (e) {
       return resolve({
         ip: target,
         status: 'offline',
         latency: '-',
-        hostname: detectedHostname,
+        hostname: '',
         lastChecked: new Date().toISOString()
       });
-    });
+    }
   });
 }
 
@@ -88,9 +108,10 @@ export async function POST(request) {
     const safeStart = Math.max(1, Math.min(start, 254));
     const safeEnd = Math.max(safeStart, Math.min(end, 254));
 
-    if (safeEnd - safeStart > 60) {
+    const totalToScan = safeEnd - safeStart + 1;
+    if (totalToScan > 254) {
       return NextResponse.json(
-        { error: 'Rentang pindai maksimal 60 alamat IP per sesi' },
+        { error: 'Rentang pindai maksimal 254 alamat IP per sesi' },
         { status: 400 }
       );
     }
@@ -100,7 +121,8 @@ export async function POST(request) {
       ipList.push(`${subnet}.${i}`);
     }
 
-    const scanResults = await mapConcurrent(ipList, 12, ip => pingHostFast(ip, 500));
+    // Concurrency ditingkatkan ke 25 proses paralel agar pemindaian hingga 254 IP selesai dalam hitungan detik
+    const scanResults = await mapConcurrent(ipList, 25, ip => pingHostFast(ip, 400));
 
     return NextResponse.json({
       scanned: ipList.length,

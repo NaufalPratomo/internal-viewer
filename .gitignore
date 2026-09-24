@@ -23,6 +23,8 @@
 # misc
 .DS_Store
 *.pem
+/rdp-configs/
+/rdp-configs/*
 
 # debug logs
 *.log

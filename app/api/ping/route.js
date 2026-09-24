@@ -35,50 +35,70 @@ function pingHost(target, timeoutMs = 800) {
       ? ['-a', '-n', '1', '-w', String(timeoutMs), trimmed]
       : ['-c', '1', '-W', String(timeoutSec), trimmed];
 
-    execFile('ping', args, { timeout: timeoutMs + 1000 }, (error, stdout, stderr) => {
-      const output = (stdout || '') + (stderr || '');
+    try {
+      execFile('ping', args, { timeout: timeoutMs + 1000 }, (error, stdout, stderr) => {
+        try {
+          const output = (stdout || '') + (stderr || '');
 
-      // Deteksi hostname jika ada: Pinging HOSTNAME [IP]
-      let detectedHostname = '';
-      const hostMatch = output.match(/Pinging\s+([a-zA-Z0-9._-]+)\s+\[/i);
-      if (hostMatch && hostMatch[1] && hostMatch[1].toLowerCase() !== trimmed.toLowerCase()) {
-        detectedHostname = hostMatch[1];
-      }
+          // Deteksi hostname jika ada: Pinging HOSTNAME [IP]
+          let detectedHostname = '';
+          const hostMatch = output.match(/Pinging\s+([a-zA-Z0-9._-]+)\s+\[/i);
+          if (hostMatch && hostMatch[1] && hostMatch[1].toLowerCase() !== trimmed.toLowerCase()) {
+            detectedHostname = hostMatch[1];
+          }
 
-      // Deteksi reply sukses Windows: Reply from 192.168.8.1: bytes=32 time=1ms TTL=64 OR time<1ms
-      const winMatch = output.match(/Reply from [^:]+:\s+bytes=\d+\s+time([=<]\d+ms)\s+TTL=\d+/i);
-      if (winMatch) {
-        return resolve({
-          ip: trimmed,
-          status: 'online',
-          latency: winMatch[1].replace('=', ''),
-          hostname: detectedHostname,
-          lastChecked: new Date().toISOString()
-        });
-      }
+          // Deteksi reply sukses Windows: Reply from 192.168.8.1: bytes=32 time=1ms TTL=64 OR time<1ms
+          const winMatch = output.match(/Reply from [^:]+:\s+bytes=\d+\s+time([=<]\d+ms)\s+TTL=\d+/i);
+          if (winMatch) {
+            return resolve({
+              ip: trimmed,
+              status: 'online',
+              latency: winMatch[1].replace('=', ''),
+              hostname: detectedHostname,
+              lastChecked: new Date().toISOString()
+            });
+          }
 
-      // Deteksi reply sukses Linux/Unix: 64 bytes from ...: icmp_seq=1 ttl=... time=0.456 ms
-      const linuxMatch = output.match(/bytes from [^:]+:\s+icmp_seq=\d+\s+ttl=\d+\s+time=([\d.]+)\s*ms/i);
-      if (linuxMatch) {
-        const ms = Math.round(parseFloat(linuxMatch[1]));
-        return resolve({
-          ip: trimmed,
-          status: 'online',
-          latency: `${ms}ms`,
-          hostname: detectedHostname,
-          lastChecked: new Date().toISOString()
-        });
-      }
+          // Deteksi reply sukses Linux/Unix: 64 bytes from ...: icmp_seq=1 ttl=... time=0.456 ms
+          const linuxMatch = output.match(/bytes from [^:]+:\s+icmp_seq=\d+\s+ttl=\d+\s+time=([\d.]+)\s*ms/i);
+          if (linuxMatch) {
+            const ms = Math.round(parseFloat(linuxMatch[1]));
+            return resolve({
+              ip: trimmed,
+              status: 'online',
+              latency: `${ms}ms`,
+              hostname: detectedHostname,
+              lastChecked: new Date().toISOString()
+            });
+          }
 
-      // Offline / Unreachable
+          // Offline / Unreachable
+          return resolve({
+            ip: trimmed,
+            status: 'offline',
+            latency: '-',
+            hostname: detectedHostname,
+            lastChecked: new Date().toISOString()
+          });
+        } catch (innerErr) {
+          return resolve({
+            ip: trimmed,
+            status: 'offline',
+            latency: '-',
+            hostname: '',
+            lastChecked: new Date().toISOString()
+          });
+        }
+      });
+    } catch (e) {
       return resolve({
         ip: trimmed,
         status: 'offline',
         latency: '-',
-        hostname: detectedHostname,
+        hostname: '',
         lastChecked: new Date().toISOString()
       });
-    });
+    }
   });
 }
 

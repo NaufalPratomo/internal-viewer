@@ -368,6 +368,37 @@ body {
   border-color: var(--focus-ring);
 }
 
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrap .form-input {
+  width: 100%;
+  padding-right: 2.75rem;
+}
+
+.btn-toggle-password {
+  position: absolute;
+  right: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.btn-toggle-password:hover {
+  color: var(--text-primary);
+}
+
 .form-hint {
   font-size: 0.75rem;
   color: var(--text-muted);
@@ -435,6 +466,18 @@ body {
 
 .btn-danger-outline:hover:not(:disabled) {
   background-color: var(--status-offline-bg);
+}
+
+.btn-rdp {
+  background-color: var(--bg-surface-subtle);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+  font-weight: 500;
+}
+
+.btn-rdp:hover:not(:disabled) {
+  background-color: var(--border-subtle);
+  color: var(--text-primary);
 }
 
 /* ==========================================================================

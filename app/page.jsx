@@ -58,6 +58,50 @@ export default function HomePage() {
   const [editingDevice, setEditingDevice] = useState(null);
   const [editNameValue, setEditNameValue] = useState('');
   const [editTypeValue, setEditTypeValue] = useState('LAN');
+  const [editUsernameValue, setEditUsernameValue] = useState('');
+  const [editPasswordValue, setEditPasswordValue] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Helper untuk membuka remote: simpan file ke folder project dan buka mstsc
+  const handleRemoteDevice = async (device) => {
+    if (!device || !device.ip) return;
+
+    try {
+      const res = await fetch('/api/remote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ip: device.ip,
+          name: device.name,
+          username: device.username,
+          password: device.password
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Jika server lokal berhasil meluncurkan mstsc, tidak perlu download browser lagi
+        if (data.launchedLocally) {
+          return;
+        }
+
+        // Fallback jika dibuka dari browser perangkat lain: unduh file yang dihasilkan server
+        if (data.content) {
+          const blob = new Blob([data.content], { type: 'application/x-rdp;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = data.filename || `${device.ip}.rdp`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }
+      }
+    } catch (err) {
+      console.error('Gagal menjalankan remote:', err);
+    }
+  };
 
   // Timer Ref
   const timerRef = useRef(null);
@@ -97,6 +141,9 @@ export default function HomePage() {
     }
   };
 
+  // Kunci penyimpanan di browser
+  const STORAGE_KEY = 'lan_monitor_devices';
+
   // Muat Data Awal
   const loadInitialData = async () => {
     try {
@@ -113,18 +160,34 @@ export default function HomePage() {
     }
 
     try {
-      const resDev = await fetch('/api/devices');
-      if (resDev.ok) {
-        const data = await resDev.json();
-        // Pastikan setiap device memiliki field networkType
-        const normalized = (Array.isArray(data) ? data : []).map(d => ({
+      // Ambil data langsung dari browser localStorage
+      const cached = localStorage.getItem(STORAGE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        const normalized = (Array.isArray(parsed) ? parsed : []).map(d => ({
           ...d,
           networkType: d.networkType || detectNetworkType(d.ip)
         }));
         setDevices(normalized);
+      } else {
+        // Fallback default jika browser baru pertama kali dibuka
+        const initialDefault = [
+          {
+            id: 'dev-localhost',
+            ip: '127.0.0.1',
+            name: 'Komputer Ini (Localhost)',
+            status: 'online',
+            latency: '<1ms',
+            hostname: 'localhost',
+            lastChecked: new Date().toISOString(),
+            networkType: 'LAN'
+          }
+        ];
+        setDevices(initialDefault);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDefault));
       }
     } catch (err) {
-      console.warn('Gagal memuat devices:', err);
+      console.warn('Gagal memuat devices dari localStorage:', err);
     }
   };
 
@@ -132,16 +195,12 @@ export default function HomePage() {
     loadInitialData();
   }, []);
 
-  // Simpan Daftar Perangkat ke Server
-  const persistDevices = async (newDevices) => {
+  // Simpan Daftar Perangkat ke browser localStorage
+  const persistDevices = (newDevices) => {
     try {
-      await fetch('/api/devices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newDevices)
-      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(newDevices));
     } catch (err) {
-      console.error('Gagal menyimpan perangkat ke server:', err);
+      console.error('Gagal menyimpan perangkat ke localStorage:', err);
     }
   };
 
@@ -349,6 +408,9 @@ export default function HomePage() {
     setEditingDevice(dev);
     setEditNameValue(dev.name || '');
     setEditTypeValue(dev.networkType || detectNetworkType(dev.ip));
+    setEditUsernameValue(dev.username || '');
+    setEditPasswordValue(dev.password || '');
+    setShowPassword(false);
     setIsEditModalOpen(true);
   };
 
@@ -359,13 +421,15 @@ export default function HomePage() {
         return {
           ...d,
           name: editNameValue.trim() || d.ip,
-          networkType: editTypeValue
+          networkType: editTypeValue,
+          username: editUsernameValue.trim(),
+          password: editPasswordValue
         };
       }
       return d;
     });
     setDevices(updated);
-    await persistDevices(updated);
+    persistDevices(updated);
     setIsEditModalOpen(false);
     setEditingDevice(null);
   };
@@ -411,7 +475,8 @@ export default function HomePage() {
           setScanStatusMsg(`Pemindaian selesai: Ditemukan ${active.length} komputer online.`);
         }
       } else {
-        setScanStatusMsg('Gagal melakukan pemindaian subnet.');
+        const errData = await res.json().catch(() => ({}));
+        setScanStatusMsg(errData.error || 'Gagal melakukan pemindaian subnet.');
       }
     } catch (err) {
       console.error('Scan error:', err);
@@ -763,11 +828,11 @@ export default function HomePage() {
             <table className="device-table">
               <thead>
                 <tr>
-                  <th scope="col" style={{ width: '26%' }}>Nama Komputer</th>
-                  <th scope="col" style={{ width: '24%' }}>Alamat IP / Host</th>
-                  <th scope="col" style={{ width: '16%' }}>Status</th>
+                  <th scope="col" style={{ width: '24%' }}>Nama Komputer</th>
+                  <th scope="col" style={{ width: '22%' }}>Alamat IP / Host</th>
+                  <th scope="col" style={{ width: '15%' }}>Status</th>
                   <th scope="col" style={{ width: '14%' }}>Waktu Respon</th>
-                  <th scope="col" style={{ width: '20%' }}>Aksi</th>
+                  <th scope="col" style={{ width: '25%' }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -780,6 +845,9 @@ export default function HomePage() {
                           <span className="device-title">{device.name || 'Tanpa Label'}</span>
                           {device.hostname && (
                             <span className="device-hostname-sub">Host: {device.hostname}</span>
+                          )}
+                          {device.username && (
+                            <span className="device-hostname-sub">User RDP: {device.username}</span>
                           )}
                         </div>
                       </td>
@@ -830,6 +898,22 @@ export default function HomePage() {
                       </td>
                       <td>
                         <div className="table-actions">
+                          {netType === 'LAN' && (
+                            <button
+                              type="button"
+                              className="btn btn-rdp btn-sm"
+                              onClick={() => handleRemoteDevice(device)}
+                              aria-label={`Buka Remote Desktop Windows untuk ${device.name || device.ip}`}
+                              title={device.username ? `Remote RDP (User: ${device.username})` : 'Buka Remote Desktop Windows'}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                <line x1="8" y1="21" x2="16" y2="21"></line>
+                                <line x1="12" y1="17" x2="12" y2="21"></line>
+                              </svg>
+                              <span>Remote</span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn btn-secondary btn-sm"
@@ -1067,6 +1151,53 @@ export default function HomePage() {
                   <option value="LAN">LAN (Jaringan Lokal)</option>
                   <option value="WAN">WAN (Internet / Publik)</option>
                 </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="inputEditUsername" className="form-label">Username Windows (Remote Desktop)</label>
+                <input
+                  type="text"
+                  id="inputEditUsername"
+                  className="form-input"
+                  value={editUsernameValue}
+                  onChange={(e) => setEditUsernameValue(e.target.value)}
+                  placeholder="Contoh: Administrator atau kasir"
+                  autoComplete="off"
+                />
+                <span className="form-hint">Username login Windows di komputer tujuan untuk auto-fill file RDP.</span>
+              </div>
+              <div className="form-group">
+                <label htmlFor="inputEditPassword" className="form-label">Password Windows (Remote Desktop)</label>
+                <div className="password-input-wrap">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="inputEditPassword"
+                    className="form-input"
+                    value={editPasswordValue}
+                    onChange={(e) => setEditPasswordValue(e.target.value)}
+                    placeholder="Masukkan password login Windows (opsional)"
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    className="btn-toggle-password"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                    title={showPassword ? 'Sembunyikan password' : 'Lihat password'}
+                  >
+                    {showPassword ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    )}
+                  </button>
+                </div>
+                <span className="form-hint">Disimpan lokal di browser untuk pendaftaran kredensial otomatis saat remote.</span>
               </div>
             </div>
             <div className="modal-footer">
