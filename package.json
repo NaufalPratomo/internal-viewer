@@ -6,10 +6,17 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "pm2:start": "pm2 start \"npm start\" --name \"internal-viewer\"",
+    "pm2:stop": "pm2 stop internal-viewer",
+    "pm2:restart": "pm2 restart internal-viewer",
+    "pm2:status": "pm2 status",
+    "pm2:save": "pm2 save"
   },
   "dependencies": {
     "next": "^15.2.1",
+    "pm2": "^7.0.4",
+    "pm2-windows-startup": "^1.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
