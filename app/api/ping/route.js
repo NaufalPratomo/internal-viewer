@@ -30,13 +30,15 @@ function pingHost(target, timeoutMs = 800) {
     const isWin = os.platform() === 'win32';
     const timeoutSec = Math.max(1, Math.ceil(timeoutMs / 1000));
 
-    // Argumen ping: Windows (-a -n 1 -w ms) vs Linux/macOS (-c 1 -W sec)
+    // Argumen ping: Windows (-n 1 -w ms) vs Linux/macOS (-c 1 -W sec)
+    // PENTING: Jangan gunakan flag '-a' di Windows karena reverse DNS lookup ke NetBIOS/DNS lokal
+    // memakan waktu 2-5 detik per IP sehingga timeout execFile terpicu sebelum ping selesai!
     const args = isWin
-      ? ['-a', '-n', '1', '-w', String(timeoutMs), trimmed]
+      ? ['-n', '1', '-w', String(timeoutMs), trimmed]
       : ['-c', '1', '-W', String(timeoutSec), trimmed];
 
     try {
-      execFile('ping', args, { timeout: timeoutMs + 1000 }, (error, stdout, stderr) => {
+      execFile('ping', args, { timeout: Math.max(3000, timeoutMs + 2000) }, (error, stdout, stderr) => {
         try {
           const output = (stdout || '') + (stderr || '');
 

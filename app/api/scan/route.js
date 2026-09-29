@@ -9,11 +9,11 @@ function pingHostFast(target, timeoutMs = 500) {
     const isWin = os.platform() === 'win32';
     const timeoutSec = Math.max(1, Math.ceil(timeoutMs / 1000));
     const args = isWin
-      ? ['-a', '-n', '1', '-w', String(timeoutMs), target]
+      ? ['-n', '1', '-w', String(timeoutMs), target]
       : ['-c', '1', '-W', String(timeoutSec), target];
 
     try {
-      execFile('ping', args, { timeout: timeoutMs + 1000 }, (error, stdout, stderr) => {
+      execFile('ping', args, { timeout: Math.max(2500, timeoutMs + 1500) }, (error, stdout, stderr) => {
         try {
           const output = (stdout || '') + (stderr || '');
 

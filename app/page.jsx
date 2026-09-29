@@ -13,7 +13,7 @@ function detectNetworkType(str) {
   if (/^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(trimmed)) return 'LAN';
   if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(trimmed)) return 'LAN';
 
-  // Single-word local hostnames (e.g. pc-kasir, desktop-admin)
+  // Single-word local hostnames (e.g. pc-worker, srv-app, desktop-admin)
   if (/^[a-z0-9_-]+$/.test(trimmed)) return 'LAN';
 
   // Public IP atau domain internet
@@ -65,6 +65,18 @@ export default function HomePage() {
   // State Modal Peringatan Kredensial Remote RDP
   const [remoteWarnDevice, setRemoteWarnDevice] = useState(null);
 
+  // State Toast Notification (Pemberitahuan Status Aksi)
+  const [toast, setToast] = useState(null);
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'success') => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToast({ message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 4500);
+  };
+
   // Helper untuk membuka remote: validasi username terlebih dahulu
   const handleRemoteDevice = async (device) => {
     if (!device || !device.ip) return;
@@ -80,6 +92,8 @@ export default function HomePage() {
 
   // Eksekusi pemanggilan API remote RDP
   const executeRemoteCall = async (device) => {
+    showToast(`Mempersiapkan koneksi Remote Desktop ke ${device.name || device.ip}...`, 'info');
+
     try {
       const res = await fetch('/api/remote', {
         method: 'POST',
@@ -95,6 +109,7 @@ export default function HomePage() {
       if (res.ok) {
         const data = await res.json();
         if (data.launchedLocally) {
+          showToast(`Jendela Remote Desktop ke ${device.name || device.ip} berhasil diluncurkan!`, 'success');
           return;
         }
 
@@ -108,10 +123,14 @@ export default function HomePage() {
           link.click();
           document.body.removeChild(link);
           URL.revokeObjectURL(url);
+          showToast(`File koneksi ${data.filename || `${device.ip}.rdp`} telah disiapkan.`, 'success');
         }
+      } else {
+        showToast(`Gagal memulai Remote Desktop ke ${device.name || device.ip}.`, 'error');
       }
     } catch (err) {
       console.error('Gagal menjalankan remote:', err);
+      showToast(`Terjadi kesalahan jaringan saat membuka remote desktop.`, 'error');
     }
   };
 
@@ -670,7 +689,7 @@ export default function HomePage() {
               type="text"
               id="inputTargetName"
               className="form-input"
-              placeholder="Contoh: PC Kasir, DNS Cloud (opsional)"
+              placeholder="Contoh: Server Runner, Node DB (opsional)"
               value={inputName}
               onChange={(e) => setInputName(e.target.value)}
               autoComplete="off"
@@ -1003,9 +1022,25 @@ export default function HomePage() {
                       className="form-input font-mono"
                       value={scanSubnet}
                       onChange={(e) => setScanSubnet(e.target.value)}
-                      placeholder="192.168.8"
+                      placeholder="192.168.8 atau 10.122.130"
                       required
                     />
+                    {localInfo.subnets && localInfo.subnets.length > 0 && (
+                      <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Pilih Subnet:</span>
+                        {localInfo.subnets.map(s => (
+                          <button
+                            key={s}
+                            type="button"
+                            className="btn-filter-tab font-mono"
+                            style={{ padding: '0.15rem 0.45rem', minHeight: '26px', fontSize: '0.75rem', border: '1px solid var(--border-subtle)' }}
+                            onClick={() => setScanSubnet(s)}
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="form-group flex-1">
                     <label htmlFor="scanStartInput" className="form-label">Mulai Host</label>
@@ -1149,7 +1184,7 @@ export default function HomePage() {
                   className="form-input"
                   value={editNameValue}
                   onChange={(e) => setEditNameValue(e.target.value)}
-                  placeholder="Misal: PC Kasir 01"
+                  placeholder="Misal: Server Automation 01"
                   autoFocus
                 />
               </div>
@@ -1173,7 +1208,7 @@ export default function HomePage() {
                   className="form-input"
                   value={editUsernameValue}
                   onChange={(e) => setEditUsernameValue(e.target.value)}
-                  placeholder="Contoh: Administrator atau kasir"
+                  placeholder="Contoh: Administrator atau it-admin"
                   autoComplete="off"
                 />
                 <span className="form-hint">Username login Windows di komputer tujuan untuk auto-fill file RDP.</span>
@@ -1291,6 +1326,43 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast Notification Bar */}
+      {toast && (
+        <aside className="toast-container" role="status" aria-live="polite">
+          <div className={`toast-item toast-item-${toast.type}`}>
+            <div className="toast-content">
+              {toast.type === 'success' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--status-online-dot)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+              )}
+              {toast.type === 'info' && (
+                <span className="mini-spinner" style={{ width: '16px', height: '16px' }} aria-hidden="true"></span>
+              )}
+              {toast.type === 'error' && (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--status-offline-dot)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="8" x2="12" y2="12"></line>
+                  <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+              )}
+              <span>{toast.message}</span>
+            </div>
+            <button
+              type="button"
+              className="toast-close-btn"
+              onClick={() => setToast(null)}
+              aria-label="Tutup pemberitahuan"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+        </aside>
       )}
     </div>
   );
