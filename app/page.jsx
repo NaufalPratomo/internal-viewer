@@ -191,17 +191,42 @@ export default function HomePage() {
     }
 
     try {
-      // Ambil data langsung dari browser localStorage
-      const cached = localStorage.getItem(STORAGE_KEY);
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        const normalized = (Array.isArray(parsed) ? parsed : []).map(d => ({
+      // Prioritas 1: Ambil data dari server (data/devices.json)
+      const resDevices = await fetch('/api/devices');
+      let loadedDevices = null;
+      if (resDevices.ok) {
+        const serverData = await resDevices.json();
+        if (Array.isArray(serverData) && serverData.length > 0) {
+          loadedDevices = serverData;
+        }
+      }
+
+      // Prioritas 2: Jika server kosong atau baru, cek localStorage browser
+      if (!loadedDevices) {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            loadedDevices = parsed;
+            // Sinkronkan data localStorage ke server
+            fetch('/api/devices', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(parsed)
+            }).catch(() => {});
+          }
+        }
+      }
+
+      if (loadedDevices) {
+        const normalized = loadedDevices.map(d => ({
           ...d,
           networkType: d.networkType || detectNetworkType(d.ip)
         }));
         setDevices(normalized);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       } else {
-        // Fallback default jika browser baru pertama kali dibuka
+        // Fallback default jika data murni kosong
         const initialDefault = [
           {
             id: 'dev-localhost',
@@ -216,9 +241,14 @@ export default function HomePage() {
         ];
         setDevices(initialDefault);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDefault));
+        fetch('/api/devices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(initialDefault)
+        }).catch(() => {});
       }
     } catch (err) {
-      console.warn('Gagal memuat devices dari localStorage:', err);
+      console.warn('Gagal memuat devices:', err);
     }
   };
 
@@ -226,13 +256,22 @@ export default function HomePage() {
     loadInitialData();
   }, []);
 
-  // Simpan Daftar Perangkat ke browser localStorage
+  // Simpan Daftar Perangkat ke server (data/devices.json) & browser localStorage
   const persistDevices = (newDevices) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newDevices));
     } catch (err) {
       console.error('Gagal menyimpan perangkat ke localStorage:', err);
     }
+
+    // Tulis ke server data/devices.json secara asynchronous
+    fetch('/api/devices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newDevices)
+    }).catch(err => {
+      console.warn('Gagal menyimpan devices ke server data/devices.json:', err);
+    });
   };
 
   // Hitung Metrik Ringkasan Riil
