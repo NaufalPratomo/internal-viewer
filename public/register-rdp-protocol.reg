@@ -9,4 +9,5 @@ Windows Registry Editor Version 5.00
 [HKEY_CLASSES_ROOT\rdp\shell\open]
 
 [HKEY_CLASSES_ROOT\rdp\shell\open\command]
-@="cmd /c \"for /f \"tokens=1,2 delims=/: \" %%a in (\"%1\") do mstsc /v:%%b\""
+@="powershell.exe -WindowStyle Hidden -NoProfile -Command \"$url = '%1' -replace '^rdp://', '' -replace '/$', ''; Start-Process mstsc.exe -ArgumentList \"/v:$url\"\""
+

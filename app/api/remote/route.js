@@ -72,15 +72,15 @@ export async function POST(request) {
     // Jika diakses langsung di PC Server itu sendiri (localhost / 127.0.0.1)
     if (process.platform === 'win32') {
       if (username && password) {
-        // Daftarkan kredensial ke Windows Credential Manager agar langsung login otomatis
+        // Daftarkan kredensial ke Windows Credential Manager agar langsung login otomatis secara senyap
         const cmdKeyCommand = `cmdkey /generic:TERMSRV/${ip} /user:"${username.trim()}" /pass:"${password}"`;
-        exec(cmdKeyCommand, (err) => {
+        exec(cmdKeyCommand, { windowsHide: true }, (err) => {
           if (err) console.warn('Peringatan saat mendaftarkan cmdkey:', err.message);
         });
       }
 
-      // Jalankan aplikasi Remote Desktop bawaan Windows di layar server lokal
-      exec(`start "" mstsc.exe "${rdpFilePath}"`, (err) => {
+      // Jalankan aplikasi Remote Desktop bawaan Windows di layar server lokal secara senyap
+      exec(`start "" mstsc.exe "${rdpFilePath}"`, { windowsHide: true }, (err) => {
         if (err) console.warn('Peringatan saat menjalankan mstsc:', err.message);
       });
 

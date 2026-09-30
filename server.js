@@ -4,7 +4,7 @@ const next = require('next');
 
 const dev = false;
 const hostname = '0.0.0.0';
-const port = parseInt(process.env.PORT, 10) || 3000;
+const port = parseInt(process.env.PORT, 10) || 3030;
 
 const app = next({ dev, hostname, port });
 const handle = app.getRequestHandler();

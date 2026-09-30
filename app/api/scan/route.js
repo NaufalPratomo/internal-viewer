@@ -13,7 +13,10 @@ function pingHostFast(target, timeoutMs = 500) {
       : ['-c', '1', '-W', String(timeoutSec), target];
 
     try {
-      execFile('ping', args, { timeout: Math.max(2500, timeoutMs + 1500) }, (error, stdout, stderr) => {
+      execFile('ping', args, { 
+        timeout: Math.max(2500, timeoutMs + 1500),
+        windowsHide: true
+      }, (error, stdout, stderr) => {
         try {
           const output = (stdout || '') + (stderr || '');
 
