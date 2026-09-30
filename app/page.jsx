@@ -287,21 +287,28 @@ export default function HomePage() {
   }, []);
 
   // Simpan Daftar Perangkat ke server (data/devices.json) & browser localStorage
-  const persistDevices = (newDevices) => {
+  // PENTING: Hanya dipanggil saat user menambah, mengedit, atau menghapus perangkat.
+  // TIDAK dipanggil saat ping/auto-refresh agar tidak terjadi race condition.
+  const persistDevices = async (newDevices) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newDevices));
     } catch (err) {
       console.error('Gagal menyimpan perangkat ke localStorage:', err);
     }
 
-    // Tulis ke server data/devices.json secara asynchronous
-    fetch('/api/devices', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newDevices)
-    }).catch(err => {
+    // Tulis ke server data/devices.json dan tunggu konfirmasi
+    try {
+      const res = await fetch('/api/devices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newDevices)
+      });
+      if (!res.ok) {
+        console.warn('Server gagal menyimpan devices, status:', res.status);
+      }
+    } catch (err) {
       console.warn('Gagal menyimpan devices ke server data/devices.json:', err);
-    });
+    }
   };
 
   // Hitung Metrik Ringkasan Riil
@@ -354,23 +361,18 @@ export default function HomePage() {
 
       if (res.ok) {
         const result = await res.json();
-        setDevices(prev => {
-          const updated = prev.map(d => {
-            if (d.id === id) {
-              return {
-                ...d,
-                status: result.status,
-                latency: result.latency,
-                hostname: result.hostname || d.hostname,
-                lastChecked: result.lastChecked
-              };
-            }
-            return d;
-          });
-          // Update localStorage & server dengan list terbaru dari functional updater
-          persistDevices(updated);
-          return updated;
-        });
+        setDevices(prev => prev.map(d => {
+          if (d.id === id) {
+            return {
+              ...d,
+              status: result.status,
+              latency: result.latency,
+              hostname: result.hostname || d.hostname,
+              lastChecked: result.lastChecked
+            };
+          }
+          return d;
+        }));
       }
     } catch (err) {
       console.error('Ping single error:', err);
@@ -395,23 +397,19 @@ export default function HomePage() {
 
       if (res.ok) {
         const results = await res.json();
-        setDevices(prev => {
-          const updated = prev.map(d => {
-            const found = results.find(r => r.ip === d.ip);
-            if (found) {
-              return {
-                ...d,
-                status: found.status,
-                latency: found.latency,
-                hostname: found.hostname || d.hostname,
-                lastChecked: found.lastChecked
-              };
-            }
-            return d;
-          });
-          persistDevices(updated);
-          return updated;
-        });
+        setDevices(prev => prev.map(d => {
+          const found = results.find(r => r.ip === d.ip);
+          if (found) {
+            return {
+              ...d,
+              status: found.status,
+              latency: found.latency,
+              hostname: found.hostname || d.hostname,
+              lastChecked: found.lastChecked
+            };
+          }
+          return d;
+        }));
         setLastUpdatedText(`Pemeriksaan selesai pada ${formatTime(new Date().toISOString())}`);
       }
     } catch (err) {
