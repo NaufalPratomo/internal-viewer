@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "pm2:start": "pm2 start \"npm start\" --name \"internal-viewer\"",
+    "pm2:start": "pm2 start server.js --name \"internal-viewer\"",
     "pm2:stop": "pm2 stop internal-viewer",
     "pm2:restart": "pm2 restart internal-viewer",
     "pm2:status": "pm2 status",

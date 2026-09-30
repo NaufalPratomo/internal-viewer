@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": "dev-localhost",
+    "ip": "127.0.0.1",
+    "name": "Komputer Ini (Localhost)",
+    "status": "online",
+    "latency": "<1ms",
+    "hostname": "localhost",
+    "lastChecked": "2026-09-30T04:01:35.853Z",
+    "networkType": "LAN"
+  }
+]

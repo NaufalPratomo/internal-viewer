@@ -64,6 +64,8 @@ export default function HomePage() {
 
   // State Modal Peringatan Kredensial Remote RDP
   const [remoteWarnDevice, setRemoteWarnDevice] = useState(null);
+  // State Modal Panduan Aktivasi RDP Client Pertama Kali
+  const [clientSetupDevice, setClientSetupDevice] = useState(null);
 
   // State Toast Notification (Pemberitahuan Status Aksi)
   const [toast, setToast] = useState(null);
@@ -77,11 +79,24 @@ export default function HomePage() {
     }, 4500);
   };
 
-  // Helper untuk membuka remote: validasi username terlebih dahulu
+  // Helper untuk membuka remote: cek aktivasi client & validasi username
   const handleRemoteDevice = async (device) => {
     if (!device || !device.ip) return;
 
-    // Jika username Windows belum diisi, tampilkan modal peringatan konfirmasi
+    // Cek apakah browser sedang dibuka dari device lain via IP LAN (bukan localhost)
+    const isLocalhostHost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+    // Jika dibuka dari laptop/client lain dan belum pernah mengaktifkan protocol rdp:// di laptop ini
+    if (!isLocalhostHost) {
+      const isActivated = localStorage.getItem('lan_monitor_rdp_activated');
+      if (!isActivated) {
+        setClientSetupDevice(device);
+        return;
+      }
+    }
+
+    // Jika username Windows belum diisi, tampilkan modal konfirmasi
     if (!device.username || !device.username.trim()) {
       setRemoteWarnDevice(device);
       return;
@@ -94,6 +109,10 @@ export default function HomePage() {
   const executeRemoteCall = async (device) => {
     showToast(`Mempersiapkan koneksi Remote Desktop ke ${device.name || device.ip}...`, 'info');
 
+    // Cek apakah browser sedang dibuka langsung di server host atau dari laptop/PC lain via LAN
+    const isLocalhostHost = typeof window !== 'undefined' && 
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
     try {
       const res = await fetch('/api/remote', {
         method: 'POST',
@@ -102,14 +121,25 @@ export default function HomePage() {
           ip: device.ip,
           name: device.name,
           username: device.username,
-          password: device.password
+          password: device.password,
+          clientMode: !isLocalhostHost // Jika dibuka via IP LAN (cth: 10.122.130.249), jalankan di device laptop pengunjung
         })
       });
 
       if (res.ok) {
         const data = await res.json();
+        
+        // Kasus 1: Dibuka langsung di server (localhost) -> server langsung munculkan mstsc
         if (data.launchedLocally) {
-          showToast(`Jendela Remote Desktop ke ${device.name || device.ip} berhasil diluncurkan!`, 'success');
+          showToast(`Jendela Remote Desktop ke ${device.name || device.ip} berhasil diluncurkan di server!`, 'success');
+          return;
+        }
+
+        // Kasus 2: Dibuka dari laptop/device Anda via LAN -> buka mstsc di laptop Anda via protocol rdp:// tanpa download file
+        if (data.clientLaunchUrl) {
+          showToast(`Membuka Remote Desktop ke ${device.name || device.ip} di laptop Anda...`, 'success');
+          // Trigger Windows Protocol Handler rdp:// langsung di laptop pengunjung tanpa download file
+          window.location.href = data.clientLaunchUrl;
           return;
         }
 
@@ -587,11 +617,12 @@ export default function HomePage() {
         if (isScanModalOpen) setIsScanModalOpen(false);
         if (isEditModalOpen) setIsEditModalOpen(false);
         if (remoteWarnDevice) setRemoteWarnDevice(null);
+        if (clientSetupDevice) setClientSetupDevice(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isScanModalOpen, isEditModalOpen, remoteWarnDevice]);
+  }, [isScanModalOpen, isEditModalOpen, remoteWarnDevice, clientSetupDevice]);
 
   return (
     <div className="app-container">
@@ -1361,6 +1392,89 @@ export default function HomePage() {
                 }}
               >
                 Lanjutkan Remote Saja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Aktivasi Remote Desktop Client Pertama Kali */}
+      {clientSetupDevice && (
+        <div className="modal-overlay" role="dialog" aria-labelledby="modalClientTitle" aria-modal="true">
+          <div className="modal-card modal-card-sm">
+            <div className="modal-header">
+              <h3 id="modalClientTitle" className="modal-title">Aktivasi Remote Desktop di Device Ini</h3>
+              <button
+                type="button"
+                className="btn-modal-close"
+                onClick={() => setClientSetupDevice(null)}
+                aria-label="Tutup jendela aktivasi"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="modal-icon-warn" style={{ color: 'var(--brand-primary)', backgroundColor: 'var(--brand-light)' }} aria-hidden="true">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                  <line x1="8" y1="21" x2="16" y2="21"></line>
+                  <line x1="12" y1="17" x2="12" y2="21"></line>
+                </svg>
+              </div>
+              <p className="modal-instruction" style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                Agar Remote Desktop ke <strong>{clientSetupDevice.name || clientSetupDevice.ip}</strong> dapat langsung menyala di layar laptop Anda tanpa download file berulang:
+              </p>
+              <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '0.875rem', borderRadius: 'var(--radius-md)', fontSize: '0.85rem', lineHeight: '1.5', margin: '0.75rem 0' }}>
+                <ol style={{ paddingLeft: '1.2rem', margin: 0 }}>
+                  <li>Unduh file aktivasi registry Windows sekali saja melalui tombol di bawah.</li>
+                  <li>Buka file tersebut lalu klik <strong>Yes</strong> dan <strong>OK</strong>.</li>
+                </ol>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <a
+                  href="/register-rdp-protocol.reg"
+                  download="register-rdp-protocol.reg"
+                  className="btn btn-secondary"
+                  style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', width: '100%', justifyContent: 'center' }}
+                >
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>Unduh File Aktivasi (.reg)</span>
+                </a>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setClientSetupDevice(null)}
+              >
+                Nanti Saja
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  const targetDev = clientSetupDevice;
+                  // Simpan status bahwa browser di device ini sudah diaktivasi
+                  localStorage.setItem('lan_monitor_rdp_activated', 'true');
+                  setClientSetupDevice(null);
+                  
+                  // Lanjutkan ke alur remote
+                  if (!targetDev.username || !targetDev.username.trim()) {
+                    setRemoteWarnDevice(targetDev);
+                  } else {
+                    await executeRemoteCall(targetDev);
+                  }
+                }}
+              >
+                Sudah Aktifkan & Buka Remote
               </button>
             </div>
           </div>

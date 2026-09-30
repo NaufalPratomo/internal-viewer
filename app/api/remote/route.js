@@ -10,7 +10,7 @@ const RDP_DIR = path.join(process.cwd(), 'rdp-configs');
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { ip, name, username, password } = body;
+    const { ip, name, username, password, clientMode } = body;
 
     if (!ip) {
       return NextResponse.json({ error: 'Alamat IP wajib diisi' }, { status: 400 });
@@ -58,7 +58,18 @@ export async function POST(request) {
     const rdpContent = rdpLines.join('\r\n') + '\r\n';
     fs.writeFileSync(rdpFilePath, rdpContent, 'utf8');
 
-    // Jika sistem berjalan di OS Windows (PC host), daftarkan kredensial & buka mstsc langsung
+    // Jika dipanggil dari device klien via LAN (clientMode === true)
+    // Server TIDAK menyalakan mstsc di layar server, melainkan memberikan protocol rdp:// ke browser klien
+    if (clientMode) {
+      return NextResponse.json({
+        success: true,
+        clientLaunchUrl: `rdp://${ip}`,
+        launchedLocally: false,
+        filename
+      });
+    }
+
+    // Jika diakses langsung di PC Server itu sendiri (localhost / 127.0.0.1)
     if (process.platform === 'win32') {
       if (username && password) {
         // Daftarkan kredensial ke Windows Credential Manager agar langsung login otomatis
@@ -68,7 +79,7 @@ export async function POST(request) {
         });
       }
 
-      // Jalankan aplikasi Remote Desktop bawaan Windows dengan file konfigurasi dari folder project
+      // Jalankan aplikasi Remote Desktop bawaan Windows di layar server lokal
       exec(`start "" mstsc.exe "${rdpFilePath}"`, (err) => {
         if (err) console.warn('Peringatan saat menjalankan mstsc:', err.message);
       });
