@@ -1,23 +1,18 @@
 import { NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 export const dynamic = 'force-dynamic';
 
-// Gunakan __dirname berbasis import.meta.url agar path SELALU relatif ke project root,
-// bukan tergantung process.cwd() yang bisa berubah tergantung cara PM2 dijalankan.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// Naik 3 tingkat: app/api/devices/ -> app/api/ -> app/ -> root project
-const PROJECT_ROOT = path.resolve(__dirname, '..', '..', '..');
+// APP_ROOT di-set oleh server.js (CommonJS, tidak dikompilasi Next.js)
+// sehingga nilainya selalu __dirname dari project root yang sesungguhnya.
+// Fallback ke process.cwd() untuk dev mode.
+const PROJECT_ROOT = process.env.APP_ROOT || process.cwd();
 const DATA_DIR = path.join(PROJECT_ROOT, 'data');
 const DEVICES_FILE = path.join(DATA_DIR, 'devices.json');
 
-// Log path sekali saat module dimuat, untuk debugging di PM2
 console.log('[devices route] PROJECT_ROOT:', PROJECT_ROOT);
 console.log('[devices route] DEVICES_FILE:', DEVICES_FILE);
-console.log('[devices route] process.cwd():', process.cwd());
 
 const DEFAULT_DEVICES = [];
 
