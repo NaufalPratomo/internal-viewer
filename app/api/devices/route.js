@@ -40,7 +40,13 @@ function saveDevices(devices) {
 
 export async function GET() {
   const devices = readDevices();
-  return NextResponse.json(devices);
+  return NextResponse.json(devices, {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    }
+  });
 }
 
 export async function POST(request) {

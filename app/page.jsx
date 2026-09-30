@@ -221,8 +221,8 @@ export default function HomePage() {
     }
 
     try {
-      // Prioritas 1: Ambil data dari server (data/devices.json)
-      const resDevices = await fetch('/api/devices');
+      // Prioritas 1: Ambil data dari server (data/devices.json) secara fresh tanpa cache browser
+      const resDevices = await fetch('/api/devices', { cache: 'no-store' });
       let loadedDevices = null;
       if (resDevices.ok) {
         const serverData = await resDevices.json();
@@ -339,11 +339,11 @@ export default function HomePage() {
   });
 
   // Ping Tunggal
-  const pingSingleDevice = async (id) => {
+  const pingSingleDevice = async (id, immediateDevice = null) => {
     setDevices(prev => prev.map(d => d.id === id ? { ...d, status: 'checking' } : d));
 
-    const targetDev = devices.find(d => d.id === id);
-    if (!targetDev) return;
+    const targetDev = immediateDevice || devices.find(d => d.id === id);
+    if (!targetDev || !targetDev.ip) return;
 
     try {
       const res = await fetch('/api/ping', {
@@ -367,6 +367,7 @@ export default function HomePage() {
             }
             return d;
           });
+          // Update localStorage & server dengan list terbaru dari functional updater
           persistDevices(updated);
           return updated;
         });
@@ -488,7 +489,7 @@ export default function HomePage() {
     await persistDevices(updated);
 
     // Langsung ping perangkat baru
-    pingSingleDevice(newDevice.id);
+    pingSingleDevice(newDevice.id, newDevice);
   };
 
   // Hapus Komputer
