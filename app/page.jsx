@@ -30,7 +30,7 @@ export default function HomePage() {
     wanIp: ''
   });
   const [theme, setTheme] = useState('light');
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState(30);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState(600);
   const [isCheckingAll, setIsCheckingAll] = useState(false);
   const [lastUpdatedText, setLastUpdatedText] = useState('Status siap diperiksa');
 
@@ -221,7 +221,7 @@ export default function HomePage() {
     }
 
     try {
-      // Prioritas 1: Ambil data dari server (data/devices.json) secara fresh tanpa cache browser
+      // Sumber kebenaran TUNGGAL: data/devices.json di server
       const resDevices = await fetch('/api/devices', { cache: 'no-store' });
       let loadedDevices = null;
       if (resDevices.ok) {
@@ -231,19 +231,15 @@ export default function HomePage() {
         }
       }
 
-      // Prioritas 2: Jika server kosong atau baru, cek localStorage browser
+      // Fallback tampilan: kalau server kosong, tampilkan data localStorage
+      // TAPI JANGAN kirim balik ke server — itu yang menyebabkan data hilang!
       if (!loadedDevices) {
         const cached = localStorage.getItem(STORAGE_KEY);
         if (cached) {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
             loadedDevices = parsed;
-            // Sinkronkan data localStorage ke server
-            fetch('/api/devices', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(parsed)
-            }).catch(() => {});
+            // JANGAN POST ke server! Server adalah master, bukan browser.
           }
         }
       }
@@ -256,7 +252,7 @@ export default function HomePage() {
         setDevices(normalized);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
       } else {
-        // Fallback default jika data murni kosong
+        // Data benar-benar kosong di mana-mana — tampilkan default di UI saja
         const initialDefault = [
           {
             id: 'dev-localhost',
@@ -271,11 +267,8 @@ export default function HomePage() {
         ];
         setDevices(initialDefault);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(initialDefault));
-        fetch('/api/devices', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(initialDefault)
-        }).catch(() => {});
+        // Simpan default ini ke server juga supaya data awal tersedia
+        await persistDevices(initialDefault);
       }
     } catch (err) {
       console.warn('Gagal memuat devices:', err);
@@ -430,7 +423,9 @@ export default function HomePage() {
       timerRef.current = setInterval(() => {
         pingAllDevices();
       }, autoRefreshInterval * 1000);
-      setLastUpdatedText(`Pembaruan otomatis aktif: setiap ${autoRefreshInterval} detik`);
+      const minutes = Math.round(autoRefreshInterval / 60);
+      const intervalLabel = autoRefreshInterval >= 60 ? `${minutes} menit` : `${autoRefreshInterval} detik`;
+      setLastUpdatedText(`Pembaruan otomatis aktif: setiap ${intervalLabel}`);
     } else if (autoRefreshInterval === 0) {
       setLastUpdatedText('Pembaruan otomatis dinonaktifkan');
     }
@@ -839,9 +834,9 @@ export default function HomePage() {
               aria-label="Pilih interval pembaruan otomatis"
             >
               <option value={0}>Nonaktif</option>
-              <option value={10}>Setiap 10 Detik</option>
-              <option value={30}>Setiap 30 Detik</option>
-              <option value={60}>Setiap 60 Detik</option>
+              <option value={300}>Setiap 5 Menit</option>
+              <option value={600}>Setiap 10 Menit</option>
+              <option value={1800}>Setiap 30 Menit</option>
             </select>
           </div>
         </div>
